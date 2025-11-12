@@ -1,41 +1,56 @@
 {
   "name": "generate_bar_chart",
-  "description": "Generate a bar chart to show data for numerical comparisons among different categories, such as, comparing categorical data and for horizontal comparisons.",
+  "description": "Generate a bar chart to show data for numerical comparisons among different categories, such as, comparing categorical data and for horizontal comparisons. Supports single or multiple series with flexible data field mapping.",
   "inputSchema": {
     "type": "object",
     "properties": {
-      "axisXTitle": {
-        "type": "string",
-        "default": "",
-        "description": "Set the x-axis title of chart."
-      },
-      "axisYTitle": {
-        "type": "string",
-        "default": "",
-        "description": "Set the y-axis title of chart."
-      },
       "data": {
         "type": "array",
         "items": {
           "type": "object",
-          "properties": {
-            "category": {
-              "type": "string",
-              "description": "Category of the data point, such as 'Category A'."
-            },
-            "value": {
-              "type": "number",
-              "description": "Value of the data point, such as 10."
-            },
-            "group": {
-              "type": "string",
-              "description": "Group name for multiple series, used for grouping or stacking"
-            }
-          },
-          "required": ["category", "value"]
+          "description": "A single data point object with dynamic keys representing field names and values (string, number, or date string)",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          }
         },
         "minItems": 1,
-        "description": "Data for bar chart, such as, [{ category: 'Category A', value: 10 }, { category: 'Category B', value: 20 }] or [{ category: 'Category A', value: 10, group: 'Group A' }]."
+        "description": "Array of data objects. Each object should contain fields that will be mapped to x, y, and optionally z axes. Example: [{ date: '2024-01-01', value: 100, category: 'A' }]"
+      },
+      "encoding": {
+        "type": "object",
+        "description": "Field mapping configuration. Specifies which data fields to use for x-axis (category), y-axis (values), and optional z-axis (grouping)",
+        "properties": {
+          "x": {
+            "type": "string",
+            "description": "X-axis field name (category field), should be a string or date type field from the data"
+          },
+          "y": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "Y-axis field name(s) (numeric field). Can be a single field name or an array of field names for multiple series"
+          },
+          "z": {
+            "type": "string",
+            "description": "Z-axis field name (grouping/category field), optional. Used for grouping data into multiple series"
+          }
+        },
+        "required": ["x", "y"]
       },
       "height": {
         "type": "integer",
@@ -43,25 +58,11 @@
         "default": 600,
         "description": "Set the height of the chart, default is 600px."
       },
-      "group": {
-        "type": "boolean",
-        "default": false,
-        "description": "Whether grouping is enabled. When enabled, bar charts require a 'group' field in the data. When `group` is true, `stack` should be false."
-      },
-      "stack": {
-        "type": "boolean",
-        "default": false,
-        "description": "Whether stacking is enabled. When enabled, bar charts require a 'group' field in the data. When `stack` is true, `group` should be false."
-      },
       "theme": {
         "type": "string",
         "enum": ["default", "dark"],
         "default": "default",
         "description": "Set the theme for the chart, optional, default is 'default'."
-      },
-      "title": {
-        "type": "string",
-        "description": "Set the title of the chart."
       },
       "width": {
         "type": "integer",
@@ -73,10 +74,10 @@
         "type": "string",
         "enum": ["png", "svg", "option"],
         "default": "png",
-        "description": "The output type of the diagram. Can be 'png', 'svg' or 'option'. Default is 'png', 'png' will return the rendered PNG image, 'svg' will return the rendered SVG string, and 'option' will return the valid ECharts option."
+        "description": "The output type of the diagram. Can be 'png', 'svg' or 'option'. Default is 'png', 'png' will return the rendered PNG image, 'svg' will return the rendered SVG string, and 'option' will return the valid VISALL configuration."
       }
     },
-    "required": ["data"],
+    "required": ["data", "encoding"],
     "$schema": "http://json-schema.org/draft-07/schema#"
   }
 }

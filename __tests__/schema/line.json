@@ -1,45 +1,79 @@
 {
   "name": "generate_line_chart",
-  "description": "Generate a line chart to show trends over time, such as, the ratio of Apple computer sales to Apple's profits changed from 2000 to 2016.",
+  "description": "Generate a line chart to show trends over time. Supports single or multiple series with flexible data field mapping.",
   "inputSchema": {
     "type": "object",
     "properties": {
-      "axisXTitle": {
-        "type": "string",
-        "default": "",
-        "description": "Set the x-axis title of chart."
-      },
-      "axisYTitle": {
-        "type": "string",
-        "default": "",
-        "description": "Set the y-axis title of chart."
-      },
       "data": {
         "type": "array",
         "items": {
           "type": "object",
-          "properties": {
-            "group": {
-              "type": "string",
-              "description": "Group name for multiple series, required when stack is enabled"
-            },
-            "time": {
-              "type": "string"
-            },
-            "value": {
-              "type": "number"
-            }
-          },
-          "required": ["time", "value"]
+          "description": "A single data point object with dynamic keys representing field names and values (string, number, or date string)",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          }
         },
         "minItems": 1,
-        "description": "Data for line chart, such as, [{ time: '2015', value: 23 }, { time: '2016', value: 32 }]. For multiple series: [{ group: 'Series A', time: '2015', value: 23 }, { group: 'Series B', time: '2015', value: 18 }]."
+        "description": "Array of data objects. Each object should contain fields that will be mapped to x, y, and optionally z axes. Example: [{ date: '2024-01-01', value: 100, category: 'A' }]"
+      },
+      "encoding": {
+        "type": "object",
+        "description": "Field mapping configuration. Specifies which data fields to use for x-axis (time/date), y-axis (values), and optional z-axis (grouping)",
+        "properties": {
+          "x": {
+            "type": "string",
+            "description": "X-axis field name (time/date field), should be a date type field from the data"
+          },
+          "y": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ],
+            "description": "Y-axis field name(s) (numeric field). Can be a single field name or an array of field names for multiple series"
+          },
+          "z": {
+            "type": "string",
+            "description": "Z-axis field name (grouping/category field), optional. Used for grouping data into multiple series"
+          }
+        },
+        "required": ["x", "y"]
       },
       "height": {
         "type": "integer",
         "exclusiveMinimum": 0,
         "default": 600,
         "description": "Set the height of the chart, default is 600px."
+      },
+      "theme": {
+        "type": "string",
+        "enum": ["default", "dark"],
+        "default": "default",
+        "description": "Set the theme for the chart, optional, default is 'default'."
+      },
+      "width": {
+        "type": "integer",
+        "exclusiveMinimum": 0,
+        "default": 800,
+        "description": "Set the width of the chart, default is 800px."
+      },
+      "smooth": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether to use a smooth curve. Default is false."
       },
       "showArea": {
         "type": "boolean",
@@ -51,40 +85,14 @@
         "default": true,
         "description": "Whether to show symbols on data points. Default is true."
       },
-      "smooth": {
-        "type": "boolean",
-        "default": false,
-        "description": "Whether to use a smooth curve. Default is false."
-      },
-      "stack": {
-        "type": "boolean",
-        "default": false,
-        "description": "Whether stacking is enabled. When enabled, line charts require a 'group' field in the data."
-      },
-      "theme": {
-        "type": "string",
-        "enum": ["default", "dark"],
-        "default": "default",
-        "description": "Set the theme for the chart, optional, default is 'default'."
-      },
-      "title": {
-        "type": "string",
-        "description": "Set the title of the chart."
-      },
-      "width": {
-        "type": "integer",
-        "exclusiveMinimum": 0,
-        "default": 800,
-        "description": "Set the width of the chart, default is 800px."
-      },
       "outputType": {
         "type": "string",
         "enum": ["png", "svg", "option"],
         "default": "png",
-        "description": "The output type of the diagram. Can be 'png', 'svg' or 'option'. Default is 'png', 'png' will return the rendered PNG image, 'svg' will return the rendered SVG string, and 'option' will return the valid ECharts option."
+        "description": "The output type of the diagram. Can be 'png', 'svg' or 'option'. Default is 'png', 'png' will return the rendered PNG image, 'svg' will return the rendered SVG string, and 'option' will return the valid VISALL configuration."
       }
     },
-    "required": ["data"],
+    "required": ["data", "encoding"],
     "$schema": "http://json-schema.org/draft-07/schema#"
   }
 }

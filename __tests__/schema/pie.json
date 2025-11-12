@@ -1,6 +1,6 @@
 {
   "name": "generate_pie_chart",
-  "description": "Generate a pie chart to show the proportion of parts, such as, market share and budget allocation.",
+  "description": "Generate a pie chart to show the proportion of parts, such as market share and budget allocation. Supports up to 10 data points.",
   "inputSchema": {
     "type": "object",
     "properties": {
@@ -8,20 +8,36 @@
         "type": "array",
         "items": {
           "type": "object",
-          "properties": {
-            "category": {
-              "type": "string",
-              "description": "Category of the data point, such as 'Category A'."
-            },
-            "value": {
-              "type": "number",
-              "description": "Value of the data point, such as 27."
-            }
-          },
-          "required": ["category", "value"]
+          "description": "A single data point object with dynamic keys representing field names and values (string, number)",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "number"
+              }
+            ]
+          }
         },
         "minItems": 1,
-        "description": "Data for pie chart, such as, [{ category: 'Category A', value: 27 }, { category: 'Category B', value: 25 }]."
+        "maxItems": 10,
+        "description": "Array of data objects. Each object should contain fields that will be mapped to x and y axes. Example: [{ name: 'Product A', value: 30 }, { name: 'Product B', value: 25 }]"
+      },
+      "encoding": {
+        "type": "object",
+        "description": "Field mapping configuration. Specifies which data fields to use for x-axis (categories) and y-axis (values)",
+        "properties": {
+          "x": {
+            "type": "string",
+            "description": "X-axis field name (category field), should be a string field from the data representing pie slice names"
+          },
+          "y": {
+            "type": "string",
+            "description": "Y-axis field name (value field), should be a numeric field from the data representing pie slice values"
+          }
+        },
+        "required": ["x", "y"]
       },
       "height": {
         "type": "integer",
@@ -31,8 +47,10 @@
       },
       "innerRadius": {
         "type": "number",
+        "minimum": 0,
+        "maximum": 0.9,
         "default": 0,
-        "description": "Set the innerRadius of pie chart, the value between 0 and 1. Set the pie chart as a donut chart. Set the value to 0.6 or number in [0 ,1] to enable it."
+        "description": "Set the inner radius of pie chart (0-0.9). Set to 0 for standard pie chart, or value like 0.6 for donut chart."
       },
       "theme": {
         "type": "string",
@@ -54,10 +72,10 @@
         "type": "string",
         "enum": ["png", "svg", "option"],
         "default": "png",
-        "description": "The output type of the diagram. Can be 'png', 'svg' or 'option'. Default is 'png', 'png' will return the rendered PNG image, 'svg' will return the rendered SVG string, and 'option' will return the valid ECharts option."
+        "description": "The output type of the diagram. Can be 'png', 'svg' or 'option'. Default is 'png', 'png' will return the rendered PNG image, 'svg' will return the rendered SVG string, and 'option' will return the valid VISALL configuration."
       }
     },
-    "required": ["data"],
+    "required": ["data", "encoding"],
     "$schema": "http://json-schema.org/draft-07/schema#"
   }
 }
