@@ -1,5 +1,5 @@
 {
-  "name": "mcp-echarts",
+  "name": "mcp-visall",
   "description": "❤️ Generate visual charts using Apache ECharts with AI MCP dynamically.",
   "version": "0.6.1",
   "main": "build/index.js",
@@ -8,14 +8,21 @@
     "prebuild": "rm -rf build/*",
     "build": "tsc && tsc-alias -p tsconfig.json",
     "start": "npm run build && npx @modelcontextprotocol/inspector node build/index.js",
+    "dev": "npm run build && node build/index.js -t streamable -p 3033",
+    "dev:sse": "npm run build && node build/index.js -t sse -p 3033",
+    "dev:watch": "tsc --watch",
+    "dev:hot": "concurrently \"npm run dev:watch\" \"nodemon --watch build --delay 1 build/index.js -- -t streamable -p 3033\"",
+    "dev:hot:sse": "concurrently \"npm run dev:watch\" \"nodemon --watch build --delay 1 build/index.js -- -t sse -p 3033\"",
+    "serve": "node build/index.js -t streamable -p 3033",
+    "serve:sse": "node build/index.js -t sse -p 3033",
     "prepare": "husky && npm run build",
     "prepublishOnly": "npm run build"
   },
   "bin": {
-    "mcp-echarts": "./build/index.js"
+    "mcp-visall": "./build/index.js"
   },
   "files": ["build", "fonts"],
-  "keywords": ["mcp", "echarts", "visualization", "chart", "mcp-echarts"],
+  "keywords": ["mcp", "echarts", "visualization", "chart", "mcp-visall"],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.0",
     "@napi-rs/canvas": "^0.1.73",
@@ -32,8 +39,10 @@
     "@types/node": "^22.15.21",
     "@types/pixelmatch": "^5.2.6",
     "@types/pngjs": "^6.0.5",
+    "concurrently": "^9.2.1",
     "husky": "^9.1.7",
     "lint-staged": "^15.5.2",
+    "nodemon": "^3.1.11",
     "pixelmatch": "^7.1.0",
     "pngjs": "^7.0.0",
     "tsc-alias": "^1.8.16",
@@ -50,7 +59,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/hustcc/mcp-echarts"
+    "url": "https://github.com/hustcc/mcp-visall"
   },
   "license": "MIT"
 }

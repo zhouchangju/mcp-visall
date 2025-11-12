@@ -1,170 +1,190 @@
-import type { EChartsOption, SeriesOption } from "echarts";
 import { z } from "zod";
 import { generateChartImage } from "../utils";
 import {
-  AxisXTitleSchema,
-  AxisYTitleSchema,
   HeightSchema,
   OutputTypeSchema,
   ThemeSchema,
-  TitleSchema,
   WidthSchema,
 } from "../utils/schema";
 
-// Bar chart data schema
-const data = z.object({
-  category: z
+// VISALL Bar chart data schema - single data point
+const dataPoint = z
+  .record(z.union([z.string(), z.number()]))
+  .describe(
+    "A single data point object with dynamic keys representing field names and values (string, number, or date string)",
+  );
+
+// VISALL Bar chart layer encoding schema
+const barEncodingSchema = z.object({
+  x: z
     .string()
-    .describe("Category of the data point, such as 'Category A'."),
-  value: z.number().describe("Value of the data point, such as 10."),
-  group: z
+    .describe(
+      "X-axis field name (category field), should be a string or date type field from the data",
+    ),
+  y: z
+    .union([z.string(), z.array(z.string())])
+    .describe(
+      "Y-axis field name(s) (numeric field). Can be a single field name or an array of field names for multiple series",
+    ),
+  z: z
     .string()
     .optional()
-    .describe("Group name for multiple series, used for grouping or stacking"),
+    .describe(
+      "Z-axis field name (grouping/category field), optional. Used for grouping data into multiple series",
+    ),
 });
 
 export const generateBarChartTool = {
   name: "generate_bar_chart",
   description:
-    "Generate a bar chart to show data for numerical comparisons among different categories, such as, comparing categorical data and for horizontal comparisons.",
+    "Generate a bar chart to show data for numerical comparisons among different categories, such as, comparing categorical data and for horizontal comparisons. Supports single or multiple series with flexible data field mapping.",
   inputSchema: z.object({
-    axisXTitle: AxisXTitleSchema,
-    axisYTitle: AxisYTitleSchema,
     data: z
-      .array(data)
+      .array(dataPoint)
       .describe(
-        "Data for bar chart, such as, [{ category: 'Category A', value: 10 }, { category: 'Category B', value: 20 }] or [{ category: 'Category A', value: 10, group: 'Group A' }].",
+        "Array of data objects. Each object should contain fields that will be mapped to x, y, and optionally z axes. Example: [{ date: '2024-01-01', value: 100, category: 'A' }]",
       )
       .nonempty({ message: "Bar chart data cannot be empty." }),
+    encoding: barEncodingSchema.describe(
+      "Field mapping configuration. Specifies which data fields to use for x-axis (category), y-axis (values), and optional z-axis (grouping)",
+    ),
     height: HeightSchema,
-    group: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "Whether grouping is enabled. When enabled, bar charts require a 'group' field in the data. When `group` is true, `stack` should be false.",
-      ),
-    stack: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "Whether stacking is enabled. When enabled, bar charts require a 'group' field in the data. When `stack` is true, `group` should be false.",
-      ),
-
-    theme: ThemeSchema,
-    title: TitleSchema,
     width: WidthSchema,
+    theme: ThemeSchema,
     outputType: OutputTypeSchema,
   }),
   run: async (params: {
-    axisXTitle?: string;
-    axisYTitle?: string;
-    data: Array<{ category: string; value: number; group?: string }>;
+    data: Array<Record<string, string | number>>;
+    encoding: {
+      x: string;
+      y: string | string[];
+      z?: string;
+    };
     height: number;
-    group?: boolean;
-    stack?: boolean;
-    theme?: "default" | "dark";
-    title?: string;
     width: number;
+    theme?: "default" | "dark";
     outputType?: "png" | "svg" | "option";
   }) => {
-    const {
-      axisXTitle,
-      axisYTitle,
-      data,
-      height,
-      group = false,
-      stack = false,
-      theme,
-      title,
-      width,
-      outputType,
-    } = params;
+    const { data, encoding, height, width, theme, outputType } = params;
 
-    // Check if data has group field for multiple series
-    const hasGroups = data.some((item) => item.group);
+    // Build VISALL component configuration
+    const visallConfig = {
+      data: [
+        {
+          values: data,
+        },
+      ],
+      view: {
+        main: {
+          layers: [
+            {
+              type: "bar",
+              encoding: {
+                x: encoding.x,
+                y: encoding.y,
+                ...(encoding.z && { z: encoding.z }),
+              },
+            },
+          ],
+        },
+      },
+    };
 
-    let series: Array<SeriesOption> = [];
-    let categories: string[] = [];
+    // If outputType is 'option', return the VISALL config as JSON string
+    if (outputType === "option") {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(visallConfig, null, 2),
+          },
+        ],
+      };
+    }
 
-    if (hasGroups && (group || stack)) {
-      // Handle multiple series data (grouped or stacked)
-      const groupMap = new Map<
-        string,
-        Array<{ category: string; value: number }>
-      >();
-      const categorySet = new Set<string>();
+    // For 'png' or 'svg' output, we need to convert VISALL config to ECharts option
+    // This requires understanding how VISALL generates ECharts options internally
+    // For now, we'll create a basic ECharts option based on the VISALL config
+    const xField = encoding.x;
+    const yFields = Array.isArray(encoding.y) ? encoding.y : [encoding.y];
+    const zField = encoding.z;
 
-      // Group data by group field and collect all categories
-      for (const item of data) {
-        const groupName = item.group || "Default";
-        if (!groupMap.has(groupName)) {
-          groupMap.set(groupName, []);
+    // Extract unique categories for x-axis
+    const categories = Array.from(new Set(data.map((d) => String(d[xField]))));
+
+    // Build series based on y fields and optional z field
+    const series: Array<{
+      data: number[];
+      name?: string;
+      type: "bar";
+    }> = [];
+
+    if (zField) {
+      // Multiple series grouped by z field
+      const groups = Array.from(new Set(data.map((d) => String(d[zField]))));
+
+      for (const group of groups) {
+        for (const yField of yFields) {
+          const groupData = data.filter((d) => String(d[zField]) === group);
+          const values = categories.map((cat) => {
+            const point = groupData.find((d) => String(d[xField]) === cat);
+            return point ? Number(point[yField]) || 0 : 0;
+          });
+
+          series.push({
+            data: values,
+            name: yFields.length > 1 ? `${group} - ${yField}` : group,
+            type: "bar",
+          });
         }
-        const groupData = groupMap.get(groupName);
-        if (groupData) {
-          groupData.push({ category: item.category, value: item.value });
-        }
-        categorySet.add(item.category);
       }
-
-      // Sort categories
-      categories = Array.from(categorySet).sort();
-
-      // Create series for each group
-      groupMap.forEach((groupData, groupName) => {
-        // Create a map for quick lookup
-        const dataMap = new Map(groupData.map((d) => [d.category, d.value]));
-
-        // Fill values for all categories (0 for missing data)
-        const values = categories.map((category) => dataMap.get(category) ?? 0);
+    } else if (yFields.length > 1) {
+      // Multiple series from multiple y fields
+      for (const yField of yFields) {
+        const values = categories.map((cat) => {
+          const point = data.find((d) => String(d[xField]) === cat);
+          return point ? Number(point[yField]) || 0 : 0;
+        });
 
         series.push({
           data: values,
-          name: groupName,
-          stack: stack ? "Total" : undefined,
+          name: yField,
           type: "bar",
         });
-      });
+      }
     } else {
-      // Handle single series data
-      categories = data.map((item) => item.category);
-      const values = data.map((item) => item.value);
+      // Single series
+      const yField = yFields[0];
+      const values = categories.map((cat) => {
+        const point = data.find((d) => String(d[xField]) === cat);
+        return point ? Number(point[yField]) || 0 : 0;
+      });
 
-      series = [
-        {
-          data: values,
-          type: "bar",
-        },
-      ];
+      series.push({
+        data: values,
+        type: "bar",
+      });
     }
 
-    const echartsOption: EChartsOption = {
+    const echartsOption = {
       legend:
-        hasGroups && (group || stack)
+        series.length > 1
           ? {
-              left: "center",
-              orient: "horizontal",
+              left: "center" as const,
+              orient: "horizontal" as const,
               bottom: 10,
             }
           : undefined,
       series,
-      title: {
-        left: "center",
-        text: title,
-      },
       tooltip: {
-        trigger: "axis",
+        trigger: "axis" as const,
       },
       xAxis: {
         data: categories,
-        name: axisXTitle,
-        type: "category",
+        type: "category" as const,
       },
       yAxis: {
-        name: axisYTitle,
-        type: "value",
+        type: "value" as const,
       },
     };
 

@@ -5,17 +5,18 @@ import "../utils/matcher";
 describe("Line Chart Tool", () => {
   it("should generate a basic line chart", async () => {
     const result = await generateLineChartTool.run({
-      title: "Temperature Trend",
-      axisXTitle: "Month",
-      axisYTitle: "Temperature (°C)",
       data: [
-        { time: "January", value: 12 },
-        { time: "February", value: 15 },
-        { time: "March", value: 18 },
-        { time: "April", value: 22 },
-        { time: "May", value: 26 },
-        { time: "June", value: 30 },
+        { month: "January", temperature: 12 },
+        { month: "February", temperature: 15 },
+        { month: "March", temperature: 18 },
+        { month: "April", temperature: 22 },
+        { month: "May", temperature: 26 },
+        { month: "June", temperature: 30 },
       ],
+      encoding: {
+        x: "month",
+        y: "temperature",
+      },
       width: 800,
       height: 600,
       theme: "default",
@@ -26,15 +27,16 @@ describe("Line Chart Tool", () => {
 
   it("should generate a smooth line chart with area", async () => {
     const result = await generateLineChartTool.run({
-      title: "Sales Trend (Smooth with Area)",
-      axisXTitle: "Quarter",
-      axisYTitle: "Sales (K)",
       data: [
-        { time: "Q1", value: 150 },
-        { time: "Q2", value: 230 },
-        { time: "Q3", value: 324 },
-        { time: "Q4", value: 218 },
+        { quarter: "Q1", sales: 150 },
+        { quarter: "Q2", sales: 230 },
+        { quarter: "Q3", sales: 324 },
+        { quarter: "Q4", sales: 218 },
       ],
+      encoding: {
+        x: "quarter",
+        y: "sales",
+      },
       width: 800,
       height: 600,
       theme: "default",
@@ -48,19 +50,16 @@ describe("Line Chart Tool", () => {
 
   it("should generate a multi-series line chart", async () => {
     const result = await generateLineChartTool.run({
-      title: "Product Sales Comparison",
-      axisXTitle: "Month",
-      axisYTitle: "Sales",
       data: [
-        { time: "Jan", value: 120, group: "Product A" },
-        { time: "Jan", value: 100, group: "Product B" },
-        { time: "Feb", value: 200, group: "Product A" },
-        { time: "Feb", value: 150, group: "Product B" },
-        { time: "Mar", value: 150, group: "Product A" },
-        { time: "Mar", value: 180, group: "Product B" },
-        { time: "Apr", value: 80, group: "Product A" },
-        { time: "Apr", value: 90, group: "Product B" },
+        { month: "Jan", productA: 120, productB: 100 },
+        { month: "Feb", productA: 200, productB: 150 },
+        { month: "Mar", productA: 150, productB: 180 },
+        { month: "Apr", productA: 80, productB: 90 },
       ],
+      encoding: {
+        x: "month",
+        y: ["productA", "productB"],
+      },
       width: 800,
       height: 600,
       theme: "default",
@@ -70,26 +69,56 @@ describe("Line Chart Tool", () => {
     await expect(result).toImageEqual("line-multi-series");
   });
 
-  it("should generate a stacked line chart", async () => {
+  it("should generate a multi-series line chart with z field", async () => {
     const result = await generateLineChartTool.run({
-      title: "Revenue Stack",
-      axisXTitle: "Year",
-      axisYTitle: "Revenue (M)",
       data: [
-        { time: "2020", value: 120, group: "Online" },
-        { time: "2020", value: 100, group: "Offline" },
-        { time: "2021", value: 200, group: "Online" },
-        { time: "2021", value: 150, group: "Offline" },
-        { time: "2022", value: 250, group: "Online" },
-        { time: "2022", value: 180, group: "Offline" },
+        { year: "2020", value: 120, channel: "Online" },
+        { year: "2020", value: 100, channel: "Offline" },
+        { year: "2021", value: 200, channel: "Online" },
+        { year: "2021", value: 150, channel: "Offline" },
+        { year: "2022", value: 250, channel: "Online" },
+        { year: "2022", value: 180, channel: "Offline" },
       ],
+      encoding: {
+        x: "year",
+        y: "value",
+        z: "channel",
+      },
       width: 800,
       height: 600,
       theme: "default",
-      stack: true,
       showArea: true,
     });
 
     await expect(result).toImageEqual("line-stacked");
+  });
+
+  it("should return VISALL config when outputType is option", async () => {
+    const result = await generateLineChartTool.run({
+      data: [
+        { name: "光线传媒", profitability: 89.02, date: "2024-01-01" },
+        { name: "光线传媒", profitability: 31.75, date: "2023-01-01" },
+        { name: "光线传媒", profitability: 83.85, date: "2022-01-01" },
+      ],
+      encoding: {
+        x: "date",
+        y: "profitability",
+      },
+      width: 800,
+      height: 600,
+      outputType: "option",
+    });
+
+    expect(result.content).toHaveLength(1);
+    expect(result.content[0].type).toBe("text");
+
+    const config = JSON.parse(
+      (result.content[0] as { type: string; text: string }).text,
+    );
+    expect(config).toHaveProperty("data");
+    expect(config).toHaveProperty("view");
+    expect(config.view.main.layers[0].type).toBe("line");
+    expect(config.view.main.layers[0].encoding.x).toBe("date");
+    expect(config.view.main.layers[0].encoding.y).toBe("profitability");
   });
 });

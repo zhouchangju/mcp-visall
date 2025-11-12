@@ -1,40 +1,61 @@
-import type { EChartsOption, SeriesOption } from "echarts";
 import { z } from "zod";
 import { generateChartImage } from "../utils";
 import {
-  AxisXTitleSchema,
-  AxisYTitleSchema,
   HeightSchema,
   OutputTypeSchema,
   ThemeSchema,
-  TitleSchema,
   WidthSchema,
 } from "../utils/schema";
 
-// Line chart data schema
-const data = z.object({
-  group: z
+// VISALL Line chart data schema - single data point
+const dataPoint = z
+  .record(z.union([z.string(), z.number()]))
+  .describe(
+    "A single data point object with dynamic keys representing field names and values (string, number, or date string)",
+  );
+
+// VISALL Line chart layer encoding schema
+const lineEncodingSchema = z.object({
+  x: z
+    .string()
+    .describe(
+      "X-axis field name (time/date field), should be a date type field from the data",
+    ),
+  y: z
+    .union([z.string(), z.array(z.string())])
+    .describe(
+      "Y-axis field name(s) (numeric field). Can be a single field name or an array of field names for multiple series",
+    ),
+  z: z
     .string()
     .optional()
-    .describe("Group name for multiple series, required when stack is enabled"),
-  time: z.string(),
-  value: z.number(),
+    .describe(
+      "Z-axis field name (grouping/category field), optional. Used for grouping data into multiple series",
+    ),
 });
 
 export const generateLineChartTool = {
   name: "generate_line_chart",
   description:
-    "Generate a line chart to show trends over time, such as, the ratio of Apple computer sales to Apple's profits changed from 2000 to 2016.",
+    "Generate a line chart to show trends over time. Supports single or multiple series with flexible data field mapping.",
   inputSchema: z.object({
-    axisXTitle: AxisXTitleSchema,
-    axisYTitle: AxisYTitleSchema,
     data: z
-      .array(data)
+      .array(dataPoint)
       .describe(
-        "Data for line chart, such as, [{ time: '2015', value: 23 }, { time: '2016', value: 32 }]. For multiple series: [{ group: 'Series A', time: '2015', value: 23 }, { group: 'Series B', time: '2015', value: 18 }].",
+        "Array of data objects. Each object should contain fields that will be mapped to x, y, and optionally z axes. Example: [{ date: '2024-01-01', value: 100, category: 'A' }]",
       )
       .nonempty({ message: "Line chart data cannot be empty." }),
+    encoding: lineEncodingSchema.describe(
+      "Field mapping configuration. Specifies which data fields to use for x-axis (time/date), y-axis (values), and optional z-axis (grouping)",
+    ),
     height: HeightSchema,
+    width: WidthSchema,
+    theme: ThemeSchema,
+    smooth: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe("Whether to use a smooth curve. Default is false."),
     showArea: z
       .boolean()
       .optional()
@@ -45,147 +66,170 @@ export const generateLineChartTool = {
       .optional()
       .default(true)
       .describe("Whether to show symbols on data points. Default is true."),
-    smooth: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe("Whether to use a smooth curve. Default is false."),
-    stack: z
-      .boolean()
-      .optional()
-      .default(false)
-      .describe(
-        "Whether stacking is enabled. When enabled, line charts require a 'group' field in the data.",
-      ),
-    theme: ThemeSchema,
-    title: TitleSchema,
-    width: WidthSchema,
     outputType: OutputTypeSchema,
   }),
-  run: (params: {
-    axisXTitle?: string;
-    axisYTitle?: string;
-    data: Array<{ time: string; value: number; group?: string }>;
+  run: async (params: {
+    data: Array<Record<string, string | number>>;
+    encoding: {
+      x: string;
+      y: string | string[];
+      z?: string;
+    };
     height: number;
+    width: number;
+    theme?: "default" | "dark";
+    smooth?: boolean;
     showArea?: boolean;
     showSymbol?: boolean;
-    smooth?: boolean;
-    stack?: boolean;
-    theme?: "default" | "dark";
-    title?: string;
-    width: number;
     outputType?: "png" | "svg" | "option";
   }) => {
     const {
-      axisXTitle,
-      axisYTitle,
       data,
+      encoding,
       height,
-      showArea,
-      showSymbol,
-      smooth,
-      stack,
-      theme,
-      title,
       width,
+      theme,
+      smooth = false,
+      showArea = false,
+      showSymbol = true,
       outputType,
     } = params;
 
-    // Check if data has group field for multiple series
-    const hasGroups = data.some((item) => item.group);
-
-    let series: Array<SeriesOption> = [];
-    let categories: string[] = [];
-
-    if (hasGroups) {
-      // Handle multiple series data
-      const groupMap = new Map<
-        string,
-        Array<{ time: string; value: number }>
-      >();
-      const timeSet = new Set<string>();
-
-      // Group data by group field and collect all time points
-      for (const item of data) {
-        const groupName = item.group || "Default";
-        if (!groupMap.has(groupName)) {
-          groupMap.set(groupName, []);
-        }
-        const groupData = groupMap.get(groupName);
-        if (groupData) {
-          groupData.push({ time: item.time, value: item.value });
-        }
-        timeSet.add(item.time);
-      }
-
-      // Sort time points
-      categories = Array.from(timeSet).sort();
-
-      // Create series for each group
-      groupMap.forEach((groupData, groupName) => {
-        // Create a map for quick lookup
-        const dataMap = new Map(groupData.map((d) => [d.time, d.value]));
-
-        // Fill values for all time points (null for missing data)
-        const values = categories.map((time) => dataMap.get(time) ?? null);
-
-        series.push({
-          areaStyle: showArea ? {} : undefined,
-          connectNulls: false,
-          data: values,
-          name: groupName,
-          showSymbol,
-          smooth,
-          stack: stack ? "Total" : undefined,
-          type: "line",
-        });
-      });
-    } else {
-      // Handle single series data
-      categories = data.map((item) => item.time);
-      const values = data.map((item) => item.value);
-
-      series = [
+    // Build VISALL component configuration
+    const visallConfig = {
+      data: [
         {
-          areaStyle: showArea ? {} : undefined,
-          data: values,
-          showSymbol,
-          smooth,
-          stack: stack ? "Total" : undefined,
-          type: "line",
+          values: data,
         },
-      ];
-    }
-
-    const echartsOption: EChartsOption = {
-      legend: hasGroups
-        ? {
-            left: "center",
-            orient: "horizontal",
-            bottom: 10,
-          }
-        : undefined,
-      series,
-      title: {
-        left: "center",
-        text: title,
-      },
-      tooltip: {
-        trigger: "axis",
-      },
-      xAxis: {
-        boundaryGap: false,
-        data: categories,
-        name: axisXTitle,
-        type: "category",
-      },
-      yAxis: {
-        name: axisYTitle,
-        type: "value",
+      ],
+      view: {
+        main: {
+          layers: [
+            {
+              type: "line",
+              encoding: {
+                x: encoding.x,
+                y: encoding.y,
+                ...(encoding.z && { z: encoding.z }),
+              },
+            },
+          ],
+        },
       },
     };
 
-    return generateChartImage(
+    // If outputType is 'option', return the VISALL config as JSON string
+    if (outputType === "option") {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(visallConfig, null, 2),
+          },
+        ],
+      };
+    }
+
+    // For 'png' or 'svg' output, convert VISALL config to ECharts option
+    const xField = encoding.x;
+    const yFields = Array.isArray(encoding.y) ? encoding.y : [encoding.y];
+    const zField = encoding.z;
+
+    // Extract unique time points for x-axis and sort them
+    const timePoints = Array.from(
+      new Set(data.map((d) => String(d[xField]))),
+    ).sort();
+
+    // Build series based on y fields and optional z field
+    const series: Array<{
+      data: (number | null)[];
+      name?: string;
+      type: "line";
+      smooth?: boolean;
+      areaStyle?: Record<string, never>;
+      showSymbol?: boolean;
+    }> = [];
+
+    if (zField) {
+      // Multiple series grouped by z field
+      const groups = Array.from(new Set(data.map((d) => String(d[zField]))));
+
+      for (const group of groups) {
+        for (const yField of yFields) {
+          const groupData = data.filter((d) => String(d[zField]) === group);
+          const values = timePoints.map((time) => {
+            const point = groupData.find((d) => String(d[xField]) === time);
+            return point ? Number(point[yField]) || null : null;
+          });
+
+          series.push({
+            data: values,
+            name: yFields.length > 1 ? `${group} - ${yField}` : group,
+            type: "line",
+            smooth,
+            areaStyle: showArea ? {} : undefined,
+            showSymbol,
+          });
+        }
+      }
+    } else if (yFields.length > 1) {
+      // Multiple series from multiple y fields
+      for (const yField of yFields) {
+        const values = timePoints.map((time) => {
+          const point = data.find((d) => String(d[xField]) === time);
+          return point ? Number(point[yField]) || null : null;
+        });
+
+        series.push({
+          data: values,
+          name: yField,
+          type: "line",
+          smooth,
+          areaStyle: showArea ? {} : undefined,
+          showSymbol,
+        });
+      }
+    } else {
+      // Single series
+      const yField = yFields[0];
+      const values = timePoints.map((time) => {
+        const point = data.find((d) => String(d[xField]) === time);
+        return point ? Number(point[yField]) || null : null;
+      });
+
+      series.push({
+        data: values,
+        type: "line",
+        smooth,
+        areaStyle: showArea ? {} : undefined,
+        showSymbol,
+      });
+    }
+
+    const echartsOption = {
+      legend:
+        series.length > 1
+          ? {
+              left: "center" as const,
+              orient: "horizontal" as const,
+              bottom: 10,
+            }
+          : undefined,
+      series,
+      tooltip: {
+        trigger: "axis" as const,
+      },
+      xAxis: {
+        boundaryGap: false,
+        data: timePoints,
+        type: "category" as const,
+      },
+      yAxis: {
+        type: "value" as const,
+      },
+    };
+
+    return await generateChartImage(
       echartsOption,
       width,
       height,

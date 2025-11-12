@@ -146,11 +146,64 @@ Also, we can setup MinIO locally for free.
 
 ## 🔨 Development
 
+### Quick Start
+
 Install dependencies:
 
 ```bash
 npm install
 ```
+
+### Development Modes
+
+#### 1. **Hot Reload Mode (Recommended for Development)**
+
+Automatically recompiles TypeScript and restarts server on file changes:
+
+```bash
+# Streamable HTTP mode with hot reload
+npm run dev:hot
+
+# SSE mode with hot reload
+npm run dev:hot:sse
+```
+
+- **Port**: `3033`
+- **Streamable endpoint**: `http://localhost:3033/mcp`
+- **SSE endpoint**: `http://localhost:3033/sse`
+- **Health check**: `http://localhost:3033/health`
+
+#### 2. **Standard Development Mode**
+
+Build and start server (requires manual restart after code changes):
+
+```bash
+# Streamable HTTP mode
+npm run dev
+
+# SSE mode
+npm run dev:sse
+```
+
+#### 3. **Watch Mode (Two-Terminal Setup)**
+
+For separated compilation and execution:
+
+**Terminal 1** (auto-compile on file changes):
+```bash
+npm run dev:watch
+```
+
+**Terminal 2** (manual restart required):
+```bash
+# Streamable HTTP mode
+npm run serve
+
+# SSE mode
+npm run serve:sse
+```
+
+### Build & Test
 
 Build the server:
 
@@ -158,10 +211,45 @@ Build the server:
 npm run build
 ```
 
-Start the MCP server:
+Run tests:
+
+```bash
+# Run all tests
+npm test
+
+# Run specific test file
+npm test -- __tests__/tools/bar.spec.ts
+```
+
+Start with MCP Inspector:
 
 ```bash
 npm run start
+```
+
+### Transport Modes Comparison
+
+| Mode | Endpoint | Use Case | Pros |
+|------|----------|----------|------|
+| **Streamable HTTP** | `http://localhost:3033/mcp` | REST API style, most AI clients | Simple, standard RESTful, easier deployment |
+| **SSE** | `http://localhost:3033/sse` | Real-time updates, browser clients | Server push capability, real-time notifications |
+
+**Recommendation**: Use **Streamable HTTP** for most development and production use cases.
+
+### Verify Server Status
+
+Check if the server is running:
+
+```bash
+curl http://localhost:3033/health
+```
+
+Expected response:
+```json
+{
+  "status": "healthy",
+  "service": "mcp-echarts"
+}
 ```
 
 
